@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-api-server-aks-ingress
+  namespace: bill-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask-api-server-aks-ingress
+  template:
+    metadata:
+      labels:
+        app: flask-api-server-aks-ingress
+    spec:
+      containers:
+      - name: flask-api-server-aks-ingress-container
+        image: BillTestContainerRegistry.azurecr.io/flask-api-server-aks-ingress:latest
+        ports:
+        - containerPort: 8000
+

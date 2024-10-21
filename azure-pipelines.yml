@@ -1,0 +1,55 @@
+trigger:
+- main
+
+variables:
+  # Azure Resource Group
+  azureResourceGroup: BillTestResouceGroup
+  # Azure Container Registry
+  azureContainerRegistry: BillTestContainerRegistry
+  # AKS Cluster Name
+  aksClusterName: BillTestCluster
+  # Docker Image Name
+  dockerImageName: flask-api-server-aks-ingress
+  # Service Connection
+  serviceConnection: BillTestServiceConnection-BillTestVmssServerAks
+  # Namespace
+  namespace: bill-test
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(serviceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az acr build --registry $(azureContainerRegistry) --image $(dockerImageName):$(Build.BuildId) .
+          az acr import --name $(azureContainerRegistry) --source $(azureContainerRegistry).azurecr.io/$(dockerImageName):$(Build.BuildId) --image $(dockerImageName):latest --force
+      displayName: 'Build image'
+
+- stage: Deploy
+  dependsOn: Build
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(serviceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az aks get-credentials --resource-group $(azureResourceGroup) --name $(aksClusterName)
+          kubectl apply -f namespace.yaml
+          kubectl apply -f deployment.yaml -n $(namespace)
+          kubectl apply -f service.yaml -n $(namespace)
+          kubectl apply -f ingress-class.yaml -n $(namespace)
+          kubectl apply -f ingress.yaml -n $(namespace)
+          kubectl rollout restart deployment/$(dockerImageName) -n $(namespace)
+      displayName: 'Deploy to AKS'
