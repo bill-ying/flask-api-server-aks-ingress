@@ -13,9 +13,8 @@ CORS(app)
 # Config values, will be moved to config file
 key_vault_name='BillTestKeyVault'
 key_valut_uri = f"https://{key_vault_name}.vault.azure.net"
-subscription_id_key = "subscriptionId"
-resource_group_name_key = "resourceGroupName"
-vmss_name = 'BillTestA'
+subscription_id_key = "subscriptionId"  # for retrieving subscription_id from Key Vault
+resource_group_name_key = "resourceGroupName"   # for retrieving resource_group_name from Key Vault
 account_url = "https://billteststorage238.blob.core.windows.net/"
 
 # Azure specific
@@ -43,52 +42,13 @@ def default():
 
 @app.route('/test', methods=['GET'])
 def test():
-    subscription_id = secret_client.get_secret(subscription_id_key).value
+    __log('test accessing Azure Key Vault')
+    _, resource_group = __azure_values()
     
-    if len(subscription_id) > 0:
+    if resource_group is not None and len(resource_group) > 0:
         return jsonify(message="Secret access test success")
     else:
         return jsonify(message="Secret access test fail")
-    
-    
-@app.route('/status', methods=['GET'])
-def status():
-    instances = __azure_values()[0].virtual_machine_scale_set_vms.list(__azure_values()[1], vmss_name)
-
-    status = {}
-    instance_list = list(instances)
-    __log(f'instances list length: {len(instance_list)}')
-
-    for instance in instance_list:
-        __log('instance' + str(instance))
-
-        instance_view = __azure_values()[0].virtual_machine_scale_set_vms.get_instance_view(
-            resource_group_name=__azure_values()[1],
-            vm_scale_set_name=vmss_name,
-            instance_id=instance.instance_id
-        )
-
-        __log('instance_view' + str(instance_view))
-
-        status[instance.name] = instance_view.statuses[1].display_status
-
-    return jsonify(status)
-
-@app.route('/turnon', methods=['GET'])
-def turn_on():
-    print('Request for turn on received')
-    __azure_values()[0].virtual_machine_scale_sets.begin_start(__azure_values()[1], vmss_name)
-    time.sleep(6)
-
-    return status()
-
-@app.route('/turnoff', methods=['GET'])
-def turn_off():
-    print('Request for turn off received')
-    __azure_values()[0].virtual_machine_scale_sets.begin_deallocate(__azure_values()[1], vmss_name)
-    time.sleep(6)
-
-    return status()
-    
+      
 if __name__ == '__main__':
     app.run()
